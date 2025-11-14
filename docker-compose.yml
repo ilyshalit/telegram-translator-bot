@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: telegram-translator
+    restart: unless-stopped
+    environment:
+      # Bot configuration
+      - BOT_TOKEN=${BOT_TOKEN}
+      
+      # Translation provider
+      - TRANSLATOR_PROVIDER=${TRANSLATOR_PROVIDER:-DEEPL}
+      - DEEPL_API_KEY=${DEEPL_API_KEY}
+      - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID}
+      - GOOGLE_CREDENTIALS_JSON_PATH=${GOOGLE_CREDENTIALS_JSON_PATH}
+      - LIBRE_BASE_URL=${LIBRE_BASE_URL}
+      - LIBRE_API_KEY=${LIBRE_API_KEY}
+      
+      # Default languages
+      - DEFAULT_CHANNEL_LANGS=${DEFAULT_CHANNEL_LANGS:-en}
+      - DEFAULT_USER_LANG=${DEFAULT_USER_LANG:-en}
+      
+      # Server configuration
+      - MODE=${MODE:-polling}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - PORT=${PORT:-8080}
+      - HOST=${HOST:-0.0.0.0}
+      
+      # Logging and monitoring
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - USE_SENTRY=${USE_SENTRY:-false}
+      - SENTRY_DSN=${SENTRY_DSN}
+      
+      # Rate limiting
+      - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-5}
+      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-15}
+      
+      # Database
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///data/bot.db}
+    
+    volumes:
+      # Persistent data storage
+      - bot_data:/app/data
+      - bot_logs:/app/logs
+      # Google credentials (if using Google Translate)
+      - ${GOOGLE_CREDENTIALS_PATH:-./credentials}:/app/credentials:ro
+    
+    ports:
+      - "${PORT:-8080}:8080"
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8080/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+volumes:
+  bot_data:
+    driver: local
+  bot_logs:
+    driver: local
+
+# Alternative configuration for webhook mode with nginx
+---
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: telegram-translator
+    restart: unless-stopped
+    environment:
+      - MODE=webhook
+      - WEBHOOK_URL=https://your-domain.com
+      - PORT=8080
+      - HOST=0.0.0.0
+      # ... other environment variables
+    volumes:
+      - bot_data:/app/data
+      - bot_logs:/app/logs
+    networks:
+      - bot_network
+    
+  nginx:
+    image: nginx:alpine
+    container_name: telegram-translator-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - telegram-bot
+    networks:
+      - bot_network
+
+volumes:
+  bot_data:
+  bot_logs:
+
+networks:
+  bot_network:
+    driver: bridge
+
