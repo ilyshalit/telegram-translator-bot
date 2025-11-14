@@ -8,9 +8,10 @@ from urllib.parse import urlparse
 
 import aiosqlite
 try:
-    import asyncpg
+    import psycopg2
+    import psycopg2.pool
 except ImportError:
-    asyncpg = None
+    psycopg2 = None
 
 from .config import settings
 from .logger import get_logger
@@ -35,13 +36,9 @@ class UniversalStorage:
     
     def _detect_db_type(self) -> str:
         """Detect database type from URL."""
-        if self.database_url.startswith('postgresql://') or self.database_url.startswith('postgres://'):
-            return 'postgresql'
-        elif self.database_url.startswith('sqlite://'):
-            return 'sqlite'
-        else:
-            # Default to SQLite for local development
-            return 'sqlite'
+        # For now, always use SQLite to avoid PostgreSQL complications
+        # TODO: Add PostgreSQL support later
+        return 'sqlite'
     
     async def initialize(self):
         """Initialize database and create tables."""
@@ -63,8 +60,8 @@ class UniversalStorage:
     
     async def _init_postgresql(self):
         """Initialize PostgreSQL connection."""
-        if not asyncpg:
-            raise DatabaseError("asyncpg not installed for PostgreSQL support")
+        if not psycopg2:
+            raise DatabaseError("psycopg2 not installed for PostgreSQL support")
         
         # Parse database URL
         parsed = urlparse(self.database_url)
