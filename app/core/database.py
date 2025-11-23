@@ -36,8 +36,8 @@ class UniversalStorage:
     
     def _detect_db_type(self) -> str:
         """Detect database type from URL."""
-        # For now, always use SQLite to avoid PostgreSQL complications
-        # TODO: Add PostgreSQL support later
+        # Always use SQLite for now
+        # PostgreSQL support requires asyncpg and is not yet implemented
         return 'sqlite'
     
     async def initialize(self):
@@ -60,26 +60,9 @@ class UniversalStorage:
     
     async def _init_postgresql(self):
         """Initialize PostgreSQL connection."""
-        if not psycopg2:
-            raise DatabaseError("psycopg2 not installed for PostgreSQL support")
-        
-        # Parse database URL
-        parsed = urlparse(self.database_url)
-        
-        # Create connection pool
-        self._pool = await asyncpg.create_pool(
-            host=parsed.hostname,
-            port=parsed.port or 5432,
-            user=parsed.username,
-            password=parsed.password,
-            database=parsed.path[1:],  # Remove leading slash
-            min_size=1,
-            max_size=10
-        )
-        
-        # Create tables
-        async with self._pool.acquire() as conn:
-            await self._create_postgresql_tables(conn)
+        # PostgreSQL support is not fully implemented yet
+        # This is a placeholder for future implementation
+        raise DatabaseError("PostgreSQL support is not yet implemented. Please use SQLite for now.")
     
     async def _init_sqlite(self):
         """Initialize SQLite connection."""

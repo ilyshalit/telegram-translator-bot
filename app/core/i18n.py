@@ -53,16 +53,16 @@ LANGUAGE_NAMES = {
 # Localized strings
 STRINGS = {
     "en": {
-        "start_message": "🐟 Hello!\nThis bot will translate messages in your group. It supports 134 languages and has various modes.\n\n📺 **For CHANNELS**: Add bot to your channel as admin\n➕ **For GROUPS**: Add bot to your group chat\n\n🤖 **How it works:**\n• Bot communicates only in private messages\n• Translates channel posts in comments automatically\n• Translates group messages when mentioned\n\n🔒 **SAFE PERMISSIONS**: Enable only:\n✅ Administrator rights (basic)\n❌ Turn OFF all other permissions!",
+        "start_message": "🐟 **Hello! Welcome to Translation Bot!**\n\nThis bot automatically translates posts in your channel's discussion group (comments section).\n\n📋 **How to get started:**\n1️⃣ Add the bot to your channel's discussion group using the button below\n2️⃣ Make sure your channel has a discussion group enabled\n3️⃣ The bot will automatically translate all posts in comments\n\n🤖 **How it works:**\n• Bot translates channel posts automatically in comments\n• Supports 134+ languages\n• Works only in discussion groups (comments section)\n\n💡 **Tip:** If your channel doesn't have a discussion group, create one in channel settings first!",
         "main_menu": "🏠 **Main Menu**\n\nChoose an option:",
         "interface_language": "🌐 Interface Language",
         "translation_language": "🔄 Translation Language", 
-        "my_channels": "📺 My Channels",
+        "my_channels": "💬 My Channel Chats",
         "setup_guide": "📋 Setup Guide",
         "help_menu": "❓ Help",
         "language_selection": "🌐 **Choose Interface Language**\n\nSelect your preferred language for bot messages:",
         "translation_lang_explanation": "🔄 **Translation Language Settings**\n\nThis setting determines which language the bot will translate posts and messages TO in your channels.\n\nExample: If you set Russian, all posts will be translated to Russian in comments.",
-        "no_channels_connected": "📺 **My Channels**\n\n❌ No channels connected yet.\n\nTo connect a channel:\n1. Add bot to your channel as admin\n2. Follow setup instructions\n3. Your channels will appear here",
+        "no_channels_connected": "💬 **My Channel Chats**\n\n❌ No channel chats connected yet.\n\nTo connect a channel chat:\n1. Add bot to your channel's discussion group (chat)\n2. Make sure your channel has a discussion group enabled\n3. Your channel chats will appear here",
         "channel_setup_success": "✅ **Channel Setup Complete!**\n\nYour channel is now connected and ready to translate posts automatically!\n\n🎯 **What happens next:**\n• Post anything in your channel\n• Bot will automatically add translations in comments\n• Users can also request translations by mentioning the bot",
         "channel_no_discussion": "⚠️ **Discussion Group Required**\n\nYour channel needs a discussion group for the bot to add translation comments.\n\n📋 **How to enable:**\n1. Go to your channel settings\n2. Tap 'Discussion'\n3. Create or link a group\n4. Come back and try again",
         "check_discussion_again": "🔄 Check Again",
@@ -137,8 +137,7 @@ Contact the bot administrator.
         "bot_not_admin": "⚠️ I need to be an administrator in this channel to post comments.",
         "translation_header": "🌐 Translation ({source}→{target}):",
         "translation_edited": "🌐 Translation ({source}→{target}) (edited):",
-        "add_to_group": "➕ Add to Group",
-        "add_to_channel": "📺 Add to Channel",
+        "add_to_group": "➕ Add to Channel Chat",
         "setup_instructions": """📋 **Setup Instructions**
 
 **Step 1: Add bot to your channel**
@@ -177,16 +176,16 @@ Post any message in your channel - bot will automatically add translation in com
         "supported_languages": "🌐 **Supported Languages**: English, Russian, Turkish, Spanish, French, German, Italian, Portuguese, Chinese, Japanese, Korean, Arabic, Hindi, Dutch, Polish, Ukrainian and 120+ more languages!\n\n🛡️ **Security Note**: This bot is designed with privacy and security in mind. It only requires minimal permissions and never stores your messages.",
     },
     "ru": {
-        "start_message": "🐟 Привет!\nЭтот бот будет переводить сообщения в вашей группе. Он поддерживает 134 языка и имеет различные режимы.\n\n📺 **Для КАНАЛОВ**: Добавьте бота в канал как администратора\n➕ **Для ГРУПП**: Добавьте бота в групповой чат\n\n🤖 **Как работает:**\n• Бот общается только в личных сообщениях\n• Переводит посты канала в комментариях автоматически\n• Переводит сообщения группы при упоминании\n\n🔒 **БЕЗОПАСНЫЕ ПРАВА**: Включите только:\n✅ Права администратора (базовые)\n❌ Все остальные права ВЫКЛЮЧИТЕ!",
+        "start_message": "🐟 **Привет! Добро пожаловать в бот-переводчик!**\n\nЭтот бот автоматически переводит посты в группе обсуждений вашего канала (секция комментариев).\n\n📋 **Как начать:**\n1️⃣ Добавьте бота в группу обсуждений вашего канала, используя кнопку ниже\n2️⃣ Убедитесь, что у вашего канала включена группа обсуждений\n3️⃣ Бот будет автоматически переводить все посты в комментариях\n\n🤖 **Как работает:**\n• Бот переводит посты канала автоматически в комментариях\n• Поддерживает 134+ языков\n• Работает только в группах обсуждений (секция комментариев)\n\n💡 **Совет:** Если у вашего канала нет группы обсуждений, сначала создайте её в настройках канала!",
         "main_menu": "🏠 **Главное меню**\n\nВыберите опцию:",
         "interface_language": "🌐 Язык интерфейса",
         "translation_language": "🔄 Язык перевода",
-        "my_channels": "📺 Мои каналы", 
+        "my_channels": "💬 Мои чаты каналов", 
         "setup_guide": "📋 Инструкция",
         "help_menu": "❓ Помощь",
         "language_selection": "🌐 **Выбор языка интерфейса**\n\nВыберите предпочитаемый язык для сообщений бота:",
         "translation_lang_explanation": "🔄 **Настройки языка перевода**\n\nЭта настройка определяет, НА КАКОЙ язык бот будет переводить посты и сообщения в ваших каналах.\n\nПример: Если выберете русский, все посты будут переводиться на русский в комментариях.",
-        "no_channels_connected": "📺 **Мои каналы**\n\n❌ Каналы пока не подключены.\n\nЧтобы подключить канал:\n1. Добавьте бота в канал как администратора\n2. Следуйте инструкции настройки\n3. Ваши каналы появятся здесь",
+        "no_channels_connected": "💬 **Мои чаты каналов**\n\n❌ Чаты каналов пока не подключены.\n\nЧтобы подключить чат канала:\n1. Добавьте бота в группу обсуждений вашего канала (чат)\n2. Убедитесь, что у вашего канала включена группа обсуждений\n3. Ваши чаты каналов появятся здесь",
         "channel_setup_success": "✅ **Настройка канала завершена!**\n\nВаш канал подключен и готов автоматически переводить посты!\n\n🎯 **Что происходит дальше:**\n• Опубликуйте любой пост в канале\n• Бот автоматически добавит переводы в комментариях\n• Пользователи также могут запросить перевод, упомянув бота",
         "channel_no_discussion": "⚠️ **Нужна группа обсуждений**\n\nВашему каналу нужна группа обсуждений, чтобы бот мог добавлять переводы в комментариях.\n\n📋 **Как включить:**\n1. Зайдите в настройки канала\n2. Нажмите 'Обсуждение'\n3. Создайте или привяжите группу\n4. Вернитесь и попробуйте снова",
         "check_discussion_again": "🔄 Проверить снова",
@@ -261,8 +260,7 @@ Post any message in your channel - bot will automatically add translation in com
         "bot_not_admin": "⚠️ Мне нужны права администратора в этом канале для публикации комментариев.",
         "translation_header": "🌐 Перевод ({source}→{target}):",
         "translation_edited": "🌐 Перевод ({source}→{target}) (отредактировано):",
-        "add_to_group": "➕ Добавить в группу",
-        "add_to_channel": "📺 Добавить в канал",
+        "add_to_group": "➕ Добавить в чат канала",
         "setup_instructions": """📋 **Инструкция по настройке**
 
 **Шаг 1: Добавьте бота в канал**

@@ -47,7 +47,8 @@ async def set_channel_languages(message: Message, is_admin: bool = False):
     if not langs_arg:
         error_text = "Usage: /set_channel_langs en,ru,tr"
         try:
-            await message.reply(error_text)
+            # Send to private chat, not to channel
+            await message.bot.send_message(chat_id=user_id, text=error_text)
         except TelegramAPIError as e:
             logger.error(f"Failed to send usage message: {e}")
         return
@@ -58,7 +59,8 @@ async def set_channel_languages(message: Message, is_admin: bool = False):
     if not is_valid:
         error_text = f"❌ {error_msg}"
         try:
-            await message.reply(error_text)
+            # Send to private chat, not to channel
+            await message.bot.send_message(chat_id=user_id, text=error_text)
         except TelegramAPIError as e:
             logger.error(f"Failed to send validation error: {e}")
         return
@@ -77,14 +79,16 @@ async def set_channel_languages(message: Message, is_admin: bool = False):
             languages=langs_display
         )
         
-        await message.reply(success_text)
+        # Send to private chat, not to channel
+        await message.bot.send_message(chat_id=user_id, text=success_text)
         logger.info(f"Set channel languages {languages} for chat {chat_id}")
         
     except Exception as e:
         logger.error(f"Failed to set channel languages: {e}")
         error_text = get_localized_string("translation_error", user_lang)
         try:
-            await message.reply(error_text)
+            # Send to private chat, not to channel
+            await message.bot.send_message(chat_id=user_id, text=error_text)
         except TelegramAPIError:
             pass
 
@@ -107,7 +111,8 @@ async def toggle_autotranslate(message: Message, is_admin: bool = False):
     if not toggle_arg or toggle_arg.lower() not in ["on", "off"]:
         error_text = "Usage: /toggle_autotranslate on|off"
         try:
-            await message.reply(error_text)
+            # Send to private chat, not to channel
+            await message.bot.send_message(chat_id=user_id, text=error_text)
         except TelegramAPIError as e:
             logger.error(f"Failed to send toggle usage: {e}")
         return
@@ -123,14 +128,16 @@ async def toggle_autotranslate(message: Message, is_admin: bool = False):
         else:
             success_text = get_localized_string("autotranslate_disabled", user_lang)
         
-        await message.reply(success_text)
+        # Send to private chat, not to channel
+        await message.bot.send_message(chat_id=user_id, text=success_text)
         logger.info(f"Set autotranslate {enable} for chat {chat_id}")
         
     except Exception as e:
         logger.error(f"Failed to toggle autotranslate: {e}")
         error_text = get_localized_string("translation_error", user_lang)
         try:
-            await message.reply(error_text)
+            # Send to private chat, not to channel
+            await message.bot.send_message(chat_id=user_id, text=error_text)
         except TelegramAPIError:
             pass
 
@@ -161,14 +168,16 @@ async def channel_stats(message: Message, is_admin: bool = False):
             translations_7d=stats_7d["translations"]
         )
         
-        await message.reply(stats_text, parse_mode="Markdown")
-        logger.info(f"Sent stats for chat {chat_id}")
+        # Send to private chat, not to channel
+        await message.bot.send_message(chat_id=user_id, text=stats_text, parse_mode="Markdown")
+        logger.info(f"Sent stats to user {user_id} for chat {chat_id}")
         
     except Exception as e:
         logger.error(f"Failed to get channel stats: {e}")
         error_text = get_localized_string("translation_error", user_lang)
         try:
-            await message.reply(error_text)
+            # Send to private chat, not to channel
+            await message.bot.send_message(chat_id=user_id, text=error_text)
         except TelegramAPIError:
             pass
 

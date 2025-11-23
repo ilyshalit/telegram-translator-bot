@@ -403,11 +403,13 @@ class LibreTranslateProvider(BaseTranslationProvider):
 
 
 class MyMemoryProvider(BaseTranslationProvider):
-    """MyMemory translation provider (free)."""
+    """MyMemory translation provider (free, but lower quality)."""
     
     def __init__(self):
         super().__init__("MyMemory")
         self.base_url = "https://api.mymemory.translated.net"
+        # MyMemory has a limit of 10,000 words per request
+        self.max_text_length = 10000
     
     def is_configured(self) -> bool:
         """MyMemory doesn't require configuration."""
@@ -430,6 +432,11 @@ class MyMemoryProvider(BaseTranslationProvider):
         if not text.strip():
             raise TranslationError("Empty text provided")
         
+        # Truncate text if too long
+        if len(text) > self.max_text_length:
+            text = text[:self.max_text_length]
+            logger.warning(f"Text truncated to {self.max_text_length} characters for MyMemory")
+        
         # Auto-detect source language if not provided
         if not source_lang:
             source_lang = await self.detect_language(text)
@@ -440,7 +447,8 @@ class MyMemoryProvider(BaseTranslationProvider):
                 params={
                     "q": text,
                     "langpair": f"{source_lang}|{target_lang}"
-                }
+                },
+                timeout=30.0
             )
             
             if response.status_code == 429:
@@ -451,12 +459,17 @@ class MyMemoryProvider(BaseTranslationProvider):
             result = response.json()
             
             if result.get("responseStatus") != 200:
-                raise ProviderError(f"MyMemory error: {result.get('responseDetails', 'Unknown error')}")
+                error_details = result.get("responseDetails", "Unknown error")
+                # Handle common MyMemory errors
+                if "QUERY_LENGTH" in error_details:
+                    raise ProviderError("Text too long for MyMemory (max 10,000 words)")
+                raise ProviderError(f"MyMemory error: {error_details}")
             
             translated_text = result["responseData"]["translatedText"]
             
-            if not translated_text:
-                raise ProviderError("No translation returned from MyMemory")
+            if not translated_text or translated_text == text:
+                # If translation is same as original, might be an error
+                logger.warning(f"MyMemory returned same text, might be an error")
             
             return TranslationResult(
                 text=translated_text,
@@ -471,6 +484,80 @@ class MyMemoryProvider(BaseTranslationProvider):
             raise ProviderError(f"MyMemory request failed: {e}")
 
 
+class ArgosTranslateProvider(BaseTranslationProvider):
+    """Argos Translate provider (open-source, free, good quality)."""
+    
+    def __init__(self):
+        super().__init__("Argos Translate")
+        # Use public Argos Translate API server
+        self.base_url = "https://translate.argosopentech.com"
+    
+    def is_configured(self) -> bool:
+        """Argos Translate doesn't require configuration."""
+        return True
+    
+    async def detect_language(self, text: str) -> str:
+        """Argos Translate doesn't have language detection, use heuristic."""
+        return detect_text_language(text)
+    
+    async def translate(
+        self, 
+        text: str, 
+        target_lang: str, 
+        source_lang: Optional[str] = None
+    ) -> TranslationResult:
+        """Translate text using Argos Translate."""
+        if not self.client:
+            raise ProviderError("Client not initialized")
+        
+        if not text.strip():
+            raise TranslationError("Empty text provided")
+        
+        # Auto-detect source language if not provided
+        if not source_lang:
+            source_lang = await self.detect_language(text)
+        
+        # Argos Translate uses language codes like "en", "ru", etc.
+        # Format: source-target
+        lang_pair = f"{source_lang}-{target_lang}"
+        
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/translate",
+                json={
+                    "q": text,
+                    "source": source_lang,
+                    "target": target_lang,
+                    "format": "text"
+                },
+                timeout=30.0
+            )
+            
+            if response.status_code == 429:
+                raise RateLimitError("Argos Translate rate limit exceeded")
+            elif response.status_code != 200:
+                error_text = response.text[:200] if response.text else "Unknown error"
+                raise ProviderError(f"Argos Translate API error: {response.status_code} - {error_text}")
+            
+            result = response.json()
+            translated_text = result.get("translatedText", "")
+            
+            if not translated_text:
+                raise ProviderError("No translation returned from Argos Translate")
+            
+            return TranslationResult(
+                text=translated_text,
+                source_lang=source_lang,
+                target_lang=target_lang,
+                provider=self.name,
+                detected_lang=source_lang if source_lang != "auto" else None
+            )
+            
+        except httpx.RequestError as e:
+            logger.error(f"Argos Translate request failed: {e}")
+            raise ProviderError(f"Argos Translate request failed: {e}")
+
+
 class TranslationService:
     """Main translation service with multiple provider support."""
     
@@ -480,11 +567,14 @@ class TranslationService:
             "GOOGLE": GoogleTranslateProvider(),
             "LIBRE": LibreTranslateProvider(),
             "MYMEMORY": MyMemoryProvider(),
+            "ARGOS": ArgosTranslateProvider(),
         }
         self.primary_provider = settings.translator_provider
+        # Order fallback providers by quality (best first)
+        fallback_order = ["ARGOS", "DEEPL", "LIBRE", "GOOGLE", "MYMEMORY"]
         self.fallback_providers = [
-            name for name in self.providers.keys() 
-            if name != self.primary_provider
+            name for name in fallback_order 
+            if name != self.primary_provider and name in self.providers
         ]
     
     def get_available_providers(self) -> List[str]:

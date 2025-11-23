@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     @validator("translator_provider")
     def validate_translator_provider(cls, v):
         """Validate translator provider."""
-        allowed_providers = ["DEEPL", "GOOGLE", "LIBRE", "MYMEMORY"]
+        allowed_providers = ["DEEPL", "GOOGLE", "LIBRE", "MYMEMORY", "ARGOS"]
         if v.upper() not in allowed_providers:
             raise ValueError(f"Translator provider must be one of: {allowed_providers}")
         return v.upper()

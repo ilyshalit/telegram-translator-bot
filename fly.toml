@@ -1,0 +1,43 @@
+# Fly.io configuration for Telegram Translation Bot
+# https://fly.io/docs/reference/configuration/
+
+app = "telegram-translator-bot"
+primary_region = "iad"  # Washington DC, change to your preferred region
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PYTHONUNBUFFERED = "1"
+  PYTHONDONTWRITEBYTECODE = "1"
+  MODE = "polling"
+  LOG_LEVEL = "INFO"
+  TRANSLATOR_PROVIDER = "ARGOS"
+  DEFAULT_CHANNEL_LANGS = "en"
+  DEFAULT_USER_LANG = "en"
+  RATE_LIMIT_REQUESTS = "5"
+  RATE_LIMIT_WINDOW = "15"
+  MAX_TEXT_LENGTH = "4096"
+  MAX_COMMENT_LENGTH = "3500"
+  USE_SENTRY = "false"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
+
+[[vm]]
+  memory_mb = 256
+  cpu_kind = "shared"
+  cpus = 1
+

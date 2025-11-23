@@ -152,20 +152,72 @@ async def my_channels_callback(callback_query: CallbackQuery):
     user_settings = await storage.get_user_settings(user_id)
     user_lang = user_settings.get("target_lang", "en") if user_settings else "en"
     
-    # TODO: Get actual channels from database
-    channels_text = get_localized_string("no_channels_connected", user_lang)
-    
-    back_text = "🔙 Назад в меню" if user_lang == "ru" else "🔙 Back to Menu"
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=back_text, callback_data="back_to_menu")]
-    ])
-    
     try:
+        # Get user's channels from database
+        channels = await storage.get_user_channels(user_id)
+        
+        if not channels:
+            # No channels connected
+            channels_text = get_localized_string("no_channels_connected", user_lang)
+        else:
+            # Show connected channels
+            if user_lang == "ru":
+                channels_text = f"💬 **Мои подключенные чаты каналов** ({len(channels)}):\n\n"
+            else:
+                channels_text = f"💬 **My Connected Channel Chats** ({len(channels)}):\n\n"
+            
+            for i, channel in enumerate(channels, 1):
+                channel_name = channel.get('title', f'Channel {channel["chat_id"]}')
+                target_langs = channel.get('target_langs', 'en')
+                if isinstance(target_langs, str):
+                    target_langs = target_langs.split(',')
+                autotranslate = channel.get('autotranslate', True)
+                
+                status_emoji = "✅" if autotranslate else "⏸️"
+                langs_text = ", ".join(target_langs)
+                
+                # Format added date
+                added_at = channel.get('added_at')
+                if added_at:
+                    from datetime import datetime
+                    added_date = datetime.fromtimestamp(added_at).strftime("%d.%m.%Y")
+                else:
+                    added_date = "N/A"
+                
+                if user_lang == "ru":
+                    channels_text += f"{i}. **{channel_name}** {status_emoji}\n"
+                    channels_text += f"   🌐 Языки перевода: {langs_text}\n"
+                    channels_text += f"   📅 Добавлен: {added_date}\n"
+                    channels_text += f"   📊 ID: `{channel['chat_id']}`\n\n"
+                else:
+                    channels_text += f"{i}. **{channel_name}** {status_emoji}\n"
+                    channels_text += f"   🌐 Translation languages: {langs_text}\n"
+                    channels_text += f"   📅 Added: {added_date}\n"
+                    channels_text += f"   📊 ID: `{channel['chat_id']}`\n\n"
+            
+            if user_lang == "ru":
+                channels_text += "**📌 Обозначения:**\n✅ - Автоперевод включен\n⏸️ - Автоперевод выключен\n\n"
+                channels_text += "💡 **Совет:** Используйте команды в чате канала:\n"
+                channels_text += "• `/set_channel_langs en,ru` - изменить языки\n"
+                channels_text += "• `/toggle_autotranslate on/off` - вкл/выкл автоперевод"
+            else:
+                channels_text += "**📌 Status Icons:**\n✅ - Auto-translation enabled\n⏸️ - Auto-translation disabled\n\n"
+                channels_text += "💡 **Tip:** Use commands in your channel chat:\n"
+                channels_text += "• `/set_channel_langs en,ru` - change languages\n"
+                channels_text += "• `/toggle_autotranslate on/off` - enable/disable auto-translation"
+        
+        back_text = "🔙 Назад в меню" if user_lang == "ru" else "🔙 Back to Menu"
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=back_text, callback_data="back_to_menu")]
+        ])
+        
         await callback_query.message.edit_text(channels_text, reply_markup=keyboard, parse_mode="Markdown")
         await callback_query.answer()
         logger.info(f"Showed my channels to user {user_id}")
-    except TelegramAPIError as e:
+    except Exception as e:
         logger.error(f"Failed to show my channels: {e}")
+        error_text = "❌ Ошибка загрузки чатов" if user_lang == "ru" else "❌ Error loading chats"
+        await callback_query.answer(error_text)
 
 
 @router.callback_query(F.data.startswith("set_interface_lang_"))
@@ -177,6 +229,10 @@ async def set_interface_language_callback(callback_query: CallbackQuery):
     try:
         # Save interface language preference
         await storage.set_user_settings(user_id, selected_lang)
+        
+        # Update bot commands for this user
+        from ..bot import translation_bot
+        await translation_bot.update_user_commands(user_id, selected_lang)
         
         # Show success message and return to menu
         success_text = "✅ Interface language updated!" if selected_lang == "en" else "✅ Язык интерфейса обновлен!"

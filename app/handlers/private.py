@@ -38,10 +38,17 @@ async def start_command(message: Message):
     
     # Check if user already has language preference
     user_settings = await storage.get_user_settings(user_id)
-    logger.info(f"DEBUG: user_settings for {user_id}: {user_settings}")
     if user_settings:
         # User already has language, show normal start message
         user_lang = user_settings.get("target_lang", "en")
+        
+        # Update bot commands for this user to match their language
+        try:
+            from ..bot import translation_bot
+            await translation_bot.update_user_commands(user_id, user_lang)
+        except Exception as e:
+            logger.warning(f"Failed to update commands for user {user_id}: {e}")
+        
         bot_username = (await message.bot.get_me()).username
         
         start_text = get_localized_string("start_message", user_lang)
@@ -49,19 +56,14 @@ async def start_command(message: Message):
         
         full_message = f"{start_text}\n\n{languages_text}"
         
-        add_group_text = get_localized_string("add_to_group", user_lang)
-        add_channel_text = get_localized_string("add_to_channel", user_lang)
+        add_to_chat_text = get_localized_string("add_to_group", user_lang)
         menu_button_text = "🏠 Main Menu" if user_lang == "en" else "🏠 Главное меню"
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=add_group_text,
+                    text=add_to_chat_text,
                     url=f"https://t.me/{bot_username}?startgroup=true"
-                ),
-                InlineKeyboardButton(
-                    text=add_channel_text,
-                    url=f"https://t.me/{bot_username}?startchannel=true"
                 )
             ],
             [InlineKeyboardButton(
@@ -71,13 +73,12 @@ async def start_command(message: Message):
         ])
         
         try:
-            await message.reply(full_message, reply_markup=keyboard, parse_mode="Markdown")
+            await message.answer(full_message, reply_markup=keyboard, parse_mode="Markdown")
             logger.info(f"Sent start message to user {user_id}")
         except TelegramAPIError as e:
             logger.error(f"Failed to send start message: {e}")
     else:
         # First time user, show language selection
-        logger.info(f"DEBUG: Showing language selection for new user {user_id}")
         welcome_text = """🐟 **Welcome to Translation Bot!**
 **Добро пожаловать в бот-переводчик!**
 
@@ -95,7 +96,7 @@ async def start_command(message: Message):
         ])
         
         try:
-            await message.reply(welcome_text, reply_markup=keyboard, parse_mode="Markdown")
+            await message.answer(welcome_text, reply_markup=keyboard, parse_mode="Markdown")
             logger.info(f"Sent language selection to user {user_id}")
         except TelegramAPIError as e:
             logger.error(f"Failed to send language selection: {e}")
@@ -111,6 +112,10 @@ async def language_selection_callback(callback_query: CallbackQuery):
         # Save user language preference
         await storage.set_user_settings(user_id, selected_lang)
         
+        # Update bot commands for this user
+        from ..bot import translation_bot
+        await translation_bot.update_user_commands(user_id, selected_lang)
+        
         # Get bot username
         bot_username = (await callback_query.bot.get_me()).username
         
@@ -120,19 +125,14 @@ async def language_selection_callback(callback_query: CallbackQuery):
         
         full_message = f"{start_text}\n\n{languages_text}"
         
-        add_group_text = get_localized_string("add_to_group", selected_lang)
-        add_channel_text = get_localized_string("add_to_channel", selected_lang)
+        add_to_chat_text = get_localized_string("add_to_group", selected_lang)
         menu_button_text = "🏠 Main Menu" if selected_lang == "en" else "🏠 Главное меню"
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=add_group_text,
+                    text=add_to_chat_text,
                     url=f"https://t.me/{bot_username}?startgroup=true"
-                ),
-                InlineKeyboardButton(
-                    text=add_channel_text,
-                    url=f"https://t.me/{bot_username}?startchannel=true"
                 )
             ],
             [InlineKeyboardButton(
@@ -179,7 +179,10 @@ async def help_command(message: Message):
     log_message_info(message, "help command")
     
     user_id = message.from_user.id
-    user_lang = detect_user_language(message.text or "", user_id)
+    
+    # Get user's language from database settings
+    user_settings = await storage.get_user_settings(user_id)
+    user_lang = user_settings.get("target_lang", "en") if user_settings else "en"
     
     # Get bot username for help message
     bot_username = (await message.bot.get_me()).username
@@ -207,7 +210,10 @@ async def set_language_command(message: Message):
     log_message_info(message, "set language command")
     
     user_id = message.from_user.id
-    user_lang = detect_user_language(message.text or "", user_id)
+    
+    # Get user's language from database settings
+    user_settings = await storage.get_user_settings(user_id)
+    user_lang = user_settings.get("target_lang", "en") if user_settings else "en"
     
     # Extract language code from command
     lang_arg = extract_command_args(message.text, "set_my_lang")
@@ -241,6 +247,10 @@ async def set_language_command(message: Message):
     try:
         await storage.set_user_settings(user_id, normalized_lang)
         
+        # Update bot commands for this user
+        from ..bot import translation_bot
+        await translation_bot.update_user_commands(user_id, normalized_lang)
+        
         # Get language name for confirmation
         lang_name = get_language_name(normalized_lang, user_lang)
         
@@ -268,7 +278,10 @@ async def privacy_command(message: Message):
     log_message_info(message, "privacy command")
     
     user_id = message.from_user.id
-    user_lang = detect_user_language(message.text or "", user_id)
+    
+    # Get user's language from database settings
+    user_settings = await storage.get_user_settings(user_id)
+    user_lang = user_settings.get("target_lang", "en") if user_settings else "en"
     
     privacy_text = get_localized_string("privacy_message", user_lang)
     
@@ -285,7 +298,10 @@ async def provider_command(message: Message):
     log_message_info(message, "provider command")
     
     user_id = message.from_user.id
-    user_lang = detect_user_language(message.text or "", user_id)
+    
+    # Get user's language from database settings
+    user_settings = await storage.get_user_settings(user_id)
+    user_lang = user_settings.get("target_lang", "en") if user_settings else "en"
     
     provider_text = get_localized_string(
         "provider_info", 
@@ -329,7 +345,10 @@ async def setup_command_private(message: Message):
     log_message_info(message, "setup command")
     
     user_id = message.from_user.id
-    user_lang = detect_user_language(message.text or "", user_id)
+    
+    # Get user's language from database settings
+    user_settings = await storage.get_user_settings(user_id)
+    user_lang = user_settings.get("target_lang", "en") if user_settings else "en"
     
     # Get bot username
     bot_username = (await message.bot.get_me()).username
@@ -509,33 +528,35 @@ async def my_channels_command(message: Message):
         if not channels:
             # No channels connected
             if user_lang == "ru":
-                response = """📺 **Мои каналы**
+                response = """💬 **Мои чаты каналов**
 
-❌ У вас пока нет подключенных каналов.
+❌ У вас пока нет подключенных чатов каналов.
 
-**Как подключить канал:**
-1. Добавьте бота в ваш канал как администратора
-2. Используйте команду /setup для получения инструкций
-3. Ваши каналы появятся здесь автоматически
+**Как подключить чат канала:**
+1. Добавьте бота в группу обсуждений вашего канала (чат)
+2. Убедитесь, что у вашего канала включена группа обсуждений
+3. Используйте команду /setup для получения инструкций
+4. Ваши чаты каналов появятся здесь автоматически
 
-💡 **Подсказка:** Бот работает только в каналах, где он добавлен как администратор."""
+💡 **Подсказка:** Бот работает только в группах обсуждений каналов (секция комментариев)."""
             else:
-                response = """📺 **My Channels**
+                response = """💬 **My Channel Chats**
 
-❌ You don't have any connected channels yet.
+❌ You don't have any connected channel chats yet.
 
-**How to connect a channel:**
-1. Add the bot to your channel as an administrator
-2. Use /setup command for detailed instructions
-3. Your channels will appear here automatically
+**How to connect a channel chat:**
+1. Add the bot to your channel's discussion group (chat)
+2. Make sure your channel has a discussion group enabled
+3. Use /setup command for detailed instructions
+4. Your channel chats will appear here automatically
 
-💡 **Tip:** Bot only works in channels where it's added as an administrator."""
+💡 **Tip:** Bot only works in channel discussion groups (comments section)."""
         else:
             # Show connected channels
             if user_lang == "ru":
-                response = f"📺 **Мои подключенные каналы** ({len(channels)}):\n\n"
+                response = f"💬 **Мои подключенные чаты каналов** ({len(channels)}):\n\n"
             else:
-                response = f"📺 **My Connected Channels** ({len(channels)}):\n\n"
+                response = f"💬 **My Connected Channel Chats** ({len(channels)}):\n\n"
             
             for i, channel in enumerate(channels, 1):
                 channel_name = channel.get('title', f'Channel {channel["chat_id"]}')
@@ -567,12 +588,12 @@ async def my_channels_command(message: Message):
                     response += f"   📊 ID: `{channel['chat_id']}`\n\n"
             
             if user_lang == "ru":
-                response += "**Легенда:**\n✅ - Автоперевод включен\n⏸️ - Автоперевод выключен\n\n"
+                response += "**📌 Обозначения:**\n✅ - Автоперевод включен\n⏸️ - Автоперевод выключен\n\n"
                 response += "💡 **Совет:** Используйте команды в канале:\n"
                 response += "• `/set_channel_langs en,ru` - изменить языки\n"
                 response += "• `/toggle_autotranslate on/off` - вкл/выкл автоперевод"
             else:
-                response += "**Legend:**\n✅ - Auto-translation enabled\n⏸️ - Auto-translation disabled\n\n"
+                response += "**📌 Status Icons:**\n✅ - Auto-translation enabled\n⏸️ - Auto-translation disabled\n\n"
                 response += "💡 **Tip:** Use commands in your channel:\n"
                 response += "• `/set_channel_langs en,ru` - change languages\n"
                 response += "• `/toggle_autotranslate on/off` - enable/disable auto-translation"
@@ -595,7 +616,10 @@ async def reset_user_data(message: Message):
     log_message_info(message, "reset command")
     
     user_id = message.from_user.id
-    user_lang = detect_user_language(message.text or "", user_id)
+    
+    # Get user's language from database settings
+    user_settings = await storage.get_user_settings(user_id)
+    user_lang = user_settings.get("target_lang", "en") if user_settings else "en"
     
     try:
         await storage.delete_user_data(user_id)
@@ -615,3 +639,108 @@ async def reset_user_data(message: Message):
             await message.reply(error_text)
         except TelegramAPIError:
             pass
+
+
+@router.message(Command("commands"))
+async def commands_list(message: Message):
+    """Handle /commands - show all available commands."""
+    log_message_info(message, "commands list")
+    
+    user_id = message.from_user.id
+    
+    # Get user's language from database settings
+    user_settings = await storage.get_user_settings(user_id)
+    user_lang = user_settings.get("target_lang", "en") if user_settings else "en"
+    
+    if user_lang == "ru":
+        commands_text = """📋 **Доступные команды:**
+
+**Основные команды:**
+/start - Начать работу с ботом
+/menu - Главное меню с кнопками
+/help - Подробная справка
+/setup - Инструкция по настройке
+/languages - Выбор языка интерфейса
+/my_channels - Мои подключенные каналы
+/commands - Показать все команды
+
+**Настройки:**
+/set_my_lang <код> - Установить ваш язык (например: /set_my_lang ru)
+/privacy - Политика конфиденциальности
+/provider - Информация о провайдере переводов
+
+**Команды для админов каналов:**
+/set_channel_langs <список> - Установить языки канала (например: /set_channel_langs en,ru)
+/toggle_autotranslate on|off - Включить/выключить автоперевод
+/stats - Статистика переводов
+
+**Использование:**
+• В ЛС: просто отправьте текст для перевода
+• В канале: бот автоматически переводит посты
+• В комментариях: упомяните бота @{username} или ответьте на его сообщение"""
+    else:
+        commands_text = """📋 **Available Commands:**
+
+**Main Commands:**
+/start - Start working with the bot
+/menu - Main menu with buttons
+/help - Detailed help
+/setup - Setup instructions
+/languages - Interface language selection
+/my_channels - My connected channels
+/commands - Show all commands
+
+**Settings:**
+/set_my_lang <code> - Set your language (example: /set_my_lang en)
+/privacy - Privacy policy
+/provider - Translation provider info
+
+**Channel Admin Commands:**
+/set_channel_langs <list> - Set channel languages (example: /set_channel_langs en,ru)
+/toggle_autotranslate on|off - Enable/disable auto-translation
+/stats - Translation statistics
+
+**Usage:**
+• In PM: just send text to translate
+• In channel: bot automatically translates posts
+• In comments: mention bot @{username} or reply to its message"""
+    
+    # Get bot username
+    bot_username = (await message.bot.get_me()).username
+    formatted_text = commands_text.format(username=bot_username)
+    
+    try:
+        await message.reply(formatted_text, parse_mode="Markdown")
+        logger.info(f"Sent commands list to user {user_id}")
+    except TelegramAPIError as e:
+        logger.error(f"Failed to send commands list: {e}")
+
+
+@router.callback_query(F.data.in_(["setup_guide", "menu_setup_guide"]))
+async def setup_guide_callback(callback: CallbackQuery):
+    """Handle setup guide button."""
+    user_id = callback.from_user.id
+    
+    # Get user's language from database settings
+    user_settings = await storage.get_user_settings(user_id)
+    user_lang = user_settings.get("target_lang", "en") if user_settings else "en"
+    
+    # Get bot username
+    bot_username = (await callback.bot.get_me()).username
+    
+    # Get setup instructions
+    instructions = get_localized_string("setup_instructions", user_lang, username=bot_username)
+    
+    back_text = "🔙 Назад в меню" if user_lang == "ru" else "🔙 Back to Menu"
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=back_text, callback_data="back_to_menu")]
+    ])
+    
+    try:
+        await callback.message.edit_text(instructions, reply_markup=keyboard, parse_mode="Markdown")
+        await callback.answer()
+        logger.info(f"Sent setup guide to user {user_id}")
+    except TelegramAPIError as e:
+        logger.error(f"Failed to send setup guide: {e}")
+        error_text = "❌ Ошибка отправки инструкции" if user_lang == "ru" else "❌ Error sending guide"
+        await callback.answer(error_text)

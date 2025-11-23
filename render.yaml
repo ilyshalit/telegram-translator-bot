@@ -15,7 +15,7 @@ services:
       - key: LOG_LEVEL
         value: INFO
       - key: TRANSLATOR_PROVIDER
-        value: MYMEMORY
+        value: ARGOS
       - key: DEFAULT_CHANNEL_LANGS
         value: en
       - key: DEFAULT_USER_LANG
