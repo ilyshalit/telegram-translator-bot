@@ -430,6 +430,144 @@ class UniversalStorage:
             logger.error(f"Failed to get user channels for {user_id}: {e}")
             return []
     
+    async def record_translation_stats(
+        self, 
+        channel_id: int, 
+        posts: int = 0, 
+        translations: int = 0
+    ) -> None:
+        """Record translation statistics for a channel."""
+        try:
+            from datetime import date
+            today = date.today().isoformat()
+            timestamp = int(datetime.now().timestamp())
+            
+            if self.db_type == 'postgresql':
+                # Check if record exists for today
+                check_query = """
+                    SELECT id FROM stats 
+                    WHERE date = $1 AND channel_id = $2
+                """
+                existing = await self._execute_query(
+                    check_query, 
+                    (today, channel_id), 
+                    fetch='one'
+                )
+                
+                if existing:
+                    # Update existing record
+                    update_query = """
+                        UPDATE stats 
+                        SET posts = posts + $1, 
+                            translations = translations + $2
+                        WHERE date = $3 AND channel_id = $4
+                    """
+                    await self._execute_query(
+                        update_query, 
+                        (posts, translations, today, channel_id)
+                    )
+                else:
+                    # Insert new record
+                    insert_query = """
+                        INSERT INTO stats (date, channel_id, posts, translations, created_at)
+                        VALUES ($1, $2, $3, $4, $5)
+                    """
+                    await self._execute_query(
+                        insert_query, 
+                        (today, channel_id, posts, translations, timestamp)
+                    )
+            else:
+                # SQLite
+                check_query = """
+                    SELECT id FROM stats 
+                    WHERE date = ? AND channel_id = ?
+                """
+                existing = await self._execute_query(
+                    check_query, 
+                    (today, channel_id), 
+                    fetch='one'
+                )
+                
+                if existing:
+                    # Update existing record
+                    update_query = """
+                        UPDATE stats 
+                        SET posts = posts + ?, 
+                            translations = translations + ?
+                        WHERE date = ? AND channel_id = ?
+                    """
+                    await self._execute_query(
+                        update_query, 
+                        (posts, translations, today, channel_id)
+                    )
+                else:
+                    # Insert new record
+                    insert_query = """
+                        INSERT INTO stats (date, channel_id, posts, translations, created_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    """
+                    await self._execute_query(
+                        insert_query, 
+                        (today, channel_id, posts, translations, timestamp)
+                    )
+            
+        except Exception as e:
+            logger.error(f"Failed to record translation stats: {e}")
+            # Don't raise - stats are not critical
+    
+    async def get_translation_stats(
+        self, 
+        channel_id: int, 
+        days: int = 1
+    ) -> Dict[str, int]:
+        """Get translation statistics for a channel."""
+        try:
+            from datetime import date, timedelta
+            end_date = date.today()
+            start_date = end_date - timedelta(days=days-1)
+            
+            if self.db_type == 'postgresql':
+                query = """
+                    SELECT SUM(posts) as total_posts, 
+                           SUM(translations) as total_translations
+                    FROM stats
+                    WHERE channel_id = $1 
+                    AND date >= $2 
+                    AND date <= $3
+                """
+                result = await self._execute_query(
+                    query, 
+                    (channel_id, start_date.isoformat(), end_date.isoformat()),
+                    fetch='one'
+                )
+            else:
+                # SQLite
+                query = """
+                    SELECT SUM(posts) as total_posts, 
+                           SUM(translations) as total_translations
+                    FROM stats
+                    WHERE channel_id = ? 
+                    AND date >= ? 
+                    AND date <= ?
+                """
+                result = await self._execute_query(
+                    query, 
+                    (channel_id, start_date.isoformat(), end_date.isoformat()),
+                    fetch='one'
+                )
+            
+            if result and result[0] is not None:
+                return {
+                    "posts": int(result[0]) or 0,
+                    "translations": int(result[1]) or 0
+                }
+            else:
+                return {"posts": 0, "translations": 0}
+            
+        except Exception as e:
+            logger.error(f"Failed to get translation stats: {e}")
+            return {"posts": 0, "translations": 0}
+    
     async def health_check(self) -> bool:
         """Check database health."""
         try:

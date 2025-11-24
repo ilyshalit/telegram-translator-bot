@@ -554,6 +554,11 @@ class ArgosTranslateProvider(BaseTranslationProvider):
             )
             
         except httpx.RequestError as e:
+            error_msg = str(e)
+            # Check if it's a DNS/connection error
+            if "Name or service not known" in error_msg or "Name resolution failed" in error_msg:
+                logger.warning(f"Argos Translate DNS error - server may be unavailable: {e}")
+                raise ProviderError("Argos Translate server is currently unavailable. Please try again later or use a different provider.")
             logger.error(f"Argos Translate request failed: {e}")
             raise ProviderError(f"Argos Translate request failed: {e}")
 
