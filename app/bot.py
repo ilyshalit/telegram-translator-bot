@@ -288,6 +288,9 @@ class TranslationBot:
         except Exception as e:
             bot_logger.error(f"Error in polling: {e}")
             raise
+        finally:
+            await runner.cleanup()
+            await self._cleanup()
     
     async def _start_polling_with_retry(self, max_retries: int = 3):
         """Start polling with retry logic for conflict errors."""
@@ -318,9 +321,6 @@ class TranslationBot:
             except Exception as e:
                 bot_logger.error(f"Unexpected error during polling: {e}")
                 raise
-        finally:
-            await runner.cleanup()
-            await self._cleanup()
     
     async def start_webhook(self, host: str = None, port: int = None):
         """Start bot in webhook mode."""
