@@ -89,9 +89,14 @@ class TranslationBot:
             await self.bot.set_webhook(webhook_url)
             bot_logger.info(f"Webhook set to: {webhook_url}")
         else:
-            # Delete webhook for polling mode
-            await self.bot.delete_webhook()
-            bot_logger.info("Webhook deleted, using polling mode")
+            # Delete webhook for polling mode to avoid conflicts
+            try:
+                await self.bot.delete_webhook(drop_pending_updates=True)
+                bot_logger.info("Webhook deleted, using polling mode")
+                # Small delay to ensure webhook is fully deleted
+                await asyncio.sleep(1)
+            except Exception as e:
+                bot_logger.warning(f"Failed to delete webhook: {e}")
     
     async def _on_shutdown(self):
         """Handle bot shutdown."""
@@ -100,9 +105,21 @@ class TranslationBot:
         # Stop rate limiter cleanup
         rate_limiter.stop_cleanup()
         
+        # Stop polling gracefully
+        if self.dp:
+            try:
+                await self.dp.stop_polling()
+                bot_logger.info("Polling stopped")
+            except Exception as e:
+                bot_logger.warning(f"Error stopping polling: {e}")
+        
         # Close bot session
         if self.bot:
-            await self.bot.session.close()
+            try:
+                await self.bot.session.close()
+                bot_logger.info("Bot session closed")
+            except Exception as e:
+                bot_logger.warning(f"Error closing bot session: {e}")
         
         bot_logger.info("Bot shutdown complete")
     
@@ -258,8 +275,11 @@ class TranslationBot:
         bot_logger.info(f"Health check server started on http://{host}:{port}")
         
         try:
-            # Start polling in background
-            polling_task = asyncio.create_task(self.dp.start_polling(self.bot))
+            # Small delay before starting polling to avoid conflicts with previous instance
+            await asyncio.sleep(2)
+            
+            # Start polling with error handling for conflicts
+            polling_task = asyncio.create_task(self._start_polling_with_retry())
             
             # Keep the server running
             await polling_task
@@ -268,6 +288,36 @@ class TranslationBot:
         except Exception as e:
             bot_logger.error(f"Error in polling: {e}")
             raise
+    
+    async def _start_polling_with_retry(self, max_retries: int = 3):
+        """Start polling with retry logic for conflict errors."""
+        from aiogram.exceptions import TelegramConflictError
+        
+        for attempt in range(max_retries):
+            try:
+                bot_logger.info(f"Starting polling (attempt {attempt + 1}/{max_retries})...")
+                await self.dp.start_polling(self.bot, allowed_updates=["message", "callback_query", "chat_member"])
+                break  # Success, exit retry loop
+            except TelegramConflictError as e:
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 5  # Exponential backoff: 5s, 10s, 15s
+                    bot_logger.warning(
+                        f"TelegramConflictError on attempt {attempt + 1}: {e}. "
+                        f"Waiting {wait_time} seconds before retry..."
+                    )
+                    await asyncio.sleep(wait_time)
+                    # Try to delete webhook again
+                    try:
+                        await self.bot.delete_webhook(drop_pending_updates=True)
+                        await asyncio.sleep(2)
+                    except Exception as webhook_error:
+                        bot_logger.warning(f"Failed to delete webhook during retry: {webhook_error}")
+                else:
+                    bot_logger.error(f"Failed to start polling after {max_retries} attempts: {e}")
+                    raise
+            except Exception as e:
+                bot_logger.error(f"Unexpected error during polling: {e}")
+                raise
         finally:
             await runner.cleanup()
             await self._cleanup()
