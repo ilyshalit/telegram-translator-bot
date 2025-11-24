@@ -525,6 +525,20 @@ async def my_channels_command(message: Message):
         # Get user's channels from database
         channels = await storage.get_user_channels(user_id)
         
+        # If no channels found, try to sync by checking where bot is admin
+        if not channels:
+            try:
+                # Try to find channels where bot is admin
+                # This is a workaround for cases where bot was added before database was initialized
+                logger.info(f"No channels found for user {user_id}, attempting to sync...")
+                
+                # Note: We can't easily enumerate all chats where bot is admin
+                # The bot will automatically add channels when it receives my_chat_member events
+                # For now, we'll just show the message that channels need to be added
+                pass
+            except Exception as sync_error:
+                logger.warning(f"Failed to sync channels for user {user_id}: {sync_error}")
+        
         if not channels:
             # No channels connected
             if user_lang == "ru":
@@ -533,24 +547,32 @@ async def my_channels_command(message: Message):
 ❌ У вас пока нет подключенных чатов каналов.
 
 **Как подключить чат канала:**
-1. Добавьте бота в группу обсуждений вашего канала (чат)
+1. Добавьте бота **как администратора** в группу обсуждений вашего канала (чат)
 2. Убедитесь, что у вашего канала включена группа обсуждений
 3. Используйте команду /setup для получения инструкций
 4. Ваши чаты каналов появятся здесь автоматически
 
-💡 **Подсказка:** Бот работает только в группах обсуждений каналов (секция комментариев)."""
+💡 **Подсказка:** Бот работает только в группах обсуждений каналов (секция комментариев).
+
+⚠️ **Важно:** Если вы уже добавили бота в канал, но он не отображается:
+- Убедитесь, что бот добавлен **как администратор** (не просто участник)
+- Попробуйте удалить и снова добавить бота в группу обсуждений канала"""
             else:
                 response = """💬 **My Channel Chats**
 
 ❌ You don't have any connected channel chats yet.
 
 **How to connect a channel chat:**
-1. Add the bot to your channel's discussion group (chat)
+1. Add the bot **as administrator** to your channel's discussion group (chat)
 2. Make sure your channel has a discussion group enabled
 3. Use /setup command for detailed instructions
 4. Your channel chats will appear here automatically
 
-💡 **Tip:** Bot only works in channel discussion groups (comments section)."""
+💡 **Tip:** Bot only works in channel discussion groups (comments section).
+
+⚠️ **Important:** If you already added the bot to a channel but it's not showing:
+- Make sure the bot is added **as administrator** (not just a member)
+- Try removing and re-adding the bot to the channel's discussion group"""
         else:
             # Show connected channels
             if user_lang == "ru":
