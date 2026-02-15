@@ -11,7 +11,9 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: MODE
-        value: polling
+        value: webhook
+      - key: WEBHOOK_URL
+        value: https://telegram-translator-bot-ew8k.onrender.com
       - key: LOG_LEVEL
         value: INFO
       - key: TRANSLATOR_PROVIDER

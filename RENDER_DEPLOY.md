@@ -46,9 +46,10 @@ DATABASE_URL=postgresql://user:password@host:port/database
 
 ### Дополнительные переменные:
 ```bash
-MODE=polling
+MODE=webhook
+WEBHOOK_URL=https://your-service-name.onrender.com
 LOG_LEVEL=INFO
-TRANSLATOR_PROVIDER=MYMEMORY
+TRANSLATOR_PROVIDER=ARGOS
 DEFAULT_CHANNEL_LANGS=en
 DEFAULT_USER_LANG=en
 RATE_LIMIT_REQUESTS=5

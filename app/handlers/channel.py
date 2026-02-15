@@ -1,5 +1,6 @@
-"""Channel handlers for auto-translation of posts."""
+"""Channel handlers: auto-translate channel posts and post translation in comments only."""
 
+import asyncio
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import Command
@@ -8,24 +9,28 @@ from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from ..core.logger import get_logger
 from ..core.translate import translation_service, TranslationError
 from ..core.database import storage, is_autotranslate_enabled, get_channel_target_languages
-from ..core.i18n import (
-    get_localized_string, 
-    detect_user_language,
-    parse_language_list,
-    get_language_name
-)
+from ..core.i18n import get_localized_string, detect_user_language, get_language_name
 from ..core.utils import (
     extract_text_from_message,
     extract_command_args,
     validate_language_list,
-    split_long_message,
     log_message_info,
-    truncate_text_for_log
+    truncate_text_for_log,
 )
 from ..core.config import settings
 
 logger = get_logger(__name__)
 router = Router()
+
+CHANNEL_POST_FORWARD_SENDER_ID = 777000  # Telegram forwards channel posts to discussion group with this sender
+
+
+async def _send_to_user(bot, user_id: int, text: str, parse_mode: str | None = None):
+    """Send message to user's private chat (for admin command replies)."""
+    try:
+        await bot.send_message(chat_id=user_id, text=text, parse_mode=parse_mode)
+    except TelegramAPIError as e:
+        logger.error(f"Failed to send to user {user_id}: {e}")
 
 
 @router.message(Command("set_channel_langs"))
@@ -45,52 +50,25 @@ async def set_channel_languages(message: Message, is_admin: bool = False):
     langs_arg = extract_command_args(message.text, "set_channel_langs")
     
     if not langs_arg:
-        error_text = "Usage: /set_channel_langs en,ru,tr"
-        try:
-            # Send to private chat, not to channel
-            await message.bot.send_message(chat_id=user_id, text=error_text)
-        except TelegramAPIError as e:
-            logger.error(f"Failed to send usage message: {e}")
+        await _send_to_user(message.bot, user_id, "Usage: /set_channel_langs en,ru,tr")
         return
     
-    # Validate language list
     is_valid, languages, error_msg = validate_language_list(langs_arg)
-    
     if not is_valid:
-        error_text = f"❌ {error_msg}"
-        try:
-            # Send to private chat, not to channel
-            await message.bot.send_message(chat_id=user_id, text=error_text)
-        except TelegramAPIError as e:
-            logger.error(f"Failed to send validation error: {e}")
+        await _send_to_user(message.bot, user_id, f"❌ {error_msg}")
         return
     
     try:
-        # Save channel settings
         await storage.set_channel_settings(chat_id, target_langs=languages)
-        
-        # Format language names for response
         lang_names = [get_language_name(lang, user_lang) for lang in languages]
-        langs_display = ", ".join(lang_names)
-        
         success_text = get_localized_string(
-            "channel_langs_set",
-            user_lang,
-            languages=langs_display
+            "channel_langs_set", user_lang, languages=", ".join(lang_names)
         )
-        
-        # Send to private chat, not to channel
-        await message.bot.send_message(chat_id=user_id, text=success_text)
+        await _send_to_user(message.bot, user_id, success_text)
         logger.info(f"Set channel languages {languages} for chat {chat_id}")
-        
     except Exception as e:
         logger.error(f"Failed to set channel languages: {e}")
-        error_text = get_localized_string("translation_error", user_lang)
-        try:
-            # Send to private chat, not to channel
-            await message.bot.send_message(chat_id=user_id, text=error_text)
-        except TelegramAPIError:
-            pass
+        await _send_to_user(message.bot, user_id, get_localized_string("translation_error", user_lang))
 
 
 @router.message(Command("toggle_autotranslate"))
@@ -108,38 +86,19 @@ async def toggle_autotranslate(message: Message, is_admin: bool = False):
     # Extract on/off argument
     toggle_arg = extract_command_args(message.text, "toggle_autotranslate")
     
-    if not toggle_arg or toggle_arg.lower() not in ["on", "off"]:
-        error_text = "Usage: /toggle_autotranslate on|off"
-        try:
-            # Send to private chat, not to channel
-            await message.bot.send_message(chat_id=user_id, text=error_text)
-        except TelegramAPIError as e:
-            logger.error(f"Failed to send toggle usage: {e}")
+    if not toggle_arg or toggle_arg.lower() not in ("on", "off"):
+        await _send_to_user(message.bot, user_id, "Usage: /toggle_autotranslate on|off")
         return
     
     enable = toggle_arg.lower() == "on"
-    
     try:
-        # Update channel settings
         await storage.set_channel_settings(chat_id, autotranslate=enable)
-        
-        if enable:
-            success_text = get_localized_string("autotranslate_enabled", user_lang)
-        else:
-            success_text = get_localized_string("autotranslate_disabled", user_lang)
-        
-        # Send to private chat, not to channel
-        await message.bot.send_message(chat_id=user_id, text=success_text)
+        key = "autotranslate_enabled" if enable else "autotranslate_disabled"
+        await _send_to_user(message.bot, user_id, get_localized_string(key, user_lang))
         logger.info(f"Set autotranslate {enable} for chat {chat_id}")
-        
     except Exception as e:
         logger.error(f"Failed to toggle autotranslate: {e}")
-        error_text = get_localized_string("translation_error", user_lang)
-        try:
-            # Send to private chat, not to channel
-            await message.bot.send_message(chat_id=user_id, text=error_text)
-        except TelegramAPIError:
-            pass
+        await _send_to_user(message.bot, user_id, get_localized_string("translation_error", user_lang))
 
 
 @router.message(Command("stats"))
@@ -155,69 +114,37 @@ async def channel_stats(message: Message, is_admin: bool = False):
     user_lang = detect_user_language(message.text or "", user_id)
     
     try:
-        # Get statistics
         stats_24h = await storage.get_translation_stats(chat_id, days=1)
         stats_7d = await storage.get_translation_stats(chat_id, days=7)
-        
         stats_text = get_localized_string(
-            "stats_message",
-            user_lang,
-            posts_24h=stats_24h["posts"],
-            translations_24h=stats_24h["translations"],
-            posts_7d=stats_7d["posts"],
-            translations_7d=stats_7d["translations"]
+            "stats_message", user_lang,
+            posts_24h=stats_24h["posts"], translations_24h=stats_24h["translations"],
+            posts_7d=stats_7d["posts"], translations_7d=stats_7d["translations"],
         )
-        
-        # Send to private chat, not to channel
-        await message.bot.send_message(chat_id=user_id, text=stats_text, parse_mode="Markdown")
+        await _send_to_user(message.bot, user_id, stats_text, parse_mode="Markdown")
         logger.info(f"Sent stats to user {user_id} for chat {chat_id}")
-        
     except Exception as e:
         logger.error(f"Failed to get channel stats: {e}")
-        error_text = get_localized_string("translation_error", user_lang)
-        try:
-            # Send to private chat, not to channel
-            await message.bot.send_message(chat_id=user_id, text=error_text)
-        except TelegramAPIError:
-            pass
+        await _send_to_user(message.bot, user_id, get_localized_string("translation_error", user_lang))
 
 
-@router.channel_post()
-async def handle_channel_post(message: Message):
-    """Handle new channel posts for auto-translation."""
-    logger.info(f"Received channel post in chat {message.chat.id}: {message.message_id}")
+# Process only the copy in the discussion group (one place = no double translation)
+@router.message(
+    F.chat.type == "supergroup",
+    F.from_user.id == CHANNEL_POST_FORWARD_SENDER_ID,
+)
+async def handle_channel_post_in_discussion(message: Message):
+    """Handle channel post copy in discussion group — translate once, post comment under post."""
     await _process_channel_post(message, is_edited=False)
 
 
-@router.edited_channel_post()
-async def handle_edited_channel_post(message: Message):
-    """Handle edited channel posts for auto-translation."""
-    logger.info(f"Received edited channel post in chat {message.chat.id}: {message.message_id}")
+@router.edited_message(
+    F.chat.type == "supergroup",
+    F.from_user.id == CHANNEL_POST_FORWARD_SENDER_ID,
+)
+async def handle_edited_channel_post_in_discussion(message: Message):
+    """Handle edited channel post in discussion group."""
     await _process_channel_post(message, is_edited=True)
-
-
-@router.message(F.chat.type.in_(["channel", "supergroup"]))
-async def handle_channel_and_group_messages(message: Message):
-    """Handle messages in channels and supergroups (including discussion groups)."""
-    logger.info(f"DEBUG: Received message in {message.chat.type} {message.chat.id}: {message.message_id}, from_user: {message.from_user}")
-    
-    # Check if this is a forwarded channel post or automatic channel message
-    if (message.chat.type == "supergroup" and 
-        message.from_user and 
-        message.from_user.id == 777000):  # Telegram service messages
-        
-        logger.info(f"Processing forwarded channel post in discussion group {message.chat.id}")
-        await _process_channel_post(message, is_edited=False)
-        return
-    
-    # Check if this is a regular channel post
-    if message.chat.type == "channel":
-        logger.info(f"Processing direct channel post in {message.chat.id}")
-        await _process_channel_post(message, is_edited=False)
-        return
-    
-    # For other supergroup messages, let the comments handler deal with them
-    logger.debug(f"Skipping message processing for {message.chat.type} {message.chat.id}")
 
 
 async def _process_channel_post(message: Message, is_edited: bool = False):
@@ -345,8 +272,6 @@ async def _post_translation_comments(original_message: Message, comment_messages
                 parse_mode="Markdown"
             )
             
-            # Small delay between comments to avoid rate limits
-            import asyncio
             await asyncio.sleep(0.5)
             
         except TelegramBadRequest as e:
